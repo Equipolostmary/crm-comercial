@@ -4,7 +4,7 @@ import pandas as pd
 # Configuración inicial
 st.set_page_config(page_title="CRM Comercial", layout="wide")
 
-# --- LOGIN REAL ---
+# --- LOGIN ---
 def login():
     st.title("🔐 Acceso CRM")
     user = st.text_input("Usuario")
@@ -12,12 +12,11 @@ def login():
 
     if st.button("Entrar"):
         if user == "equipolostmary" and password == "Elfamaster26":
-            st.session_state["role"] = "manager"
             st.session_state["login"] = True
         else:
             st.error("Usuario o contraseña incorrectos")
 
-# --- CARGA DE DATOS DESDE GOOGLE SHEETS ---
+# --- CARGA DE DATOS ---
 def cargar_datos():
     try:
         url = "https://docs.google.com/spreadsheets/d/1EkUx27lMVtO7S88uuyYtzmjxBBiKyVNc1dXY-nUwpVM/gviz/tq?tqx=out:csv&sheet=Ventas%20S%26A"
@@ -28,76 +27,122 @@ def cargar_datos():
         st.exception(e)
         return pd.DataFrame()
 
-# --- GENERADOR DE INFORMES ---
+# --- INFORMES POR ZONA ---
 def informes(df):
     st.title("📊 Generador de Informes")
 
     if df.empty:
-        st.warning("No hay datos cargados")
+        st.warning("No hay datos")
         return
 
-    st.write("Columnas detectadas:", list(df.columns))
+    col_zona = [col for col in df.columns if "zona" in col.lower()]
 
-    # Intentamos detectar zona automáticamente
-    posibles_zonas = [col for col in df.columns if "zona" in col.lower()]
+    if not col_zona:
+        st.warning("No se encontró columna de zona")
+        return
 
-    if posibles_zonas:
-        col_zona = posibles_zonas[0]
-        zonas = df[col_zona].dropna().unique()
+    col_zona = col_zona[0]
+    zonas = df[col_zona].dropna().unique()
 
-        zona = st.selectbox("Selecciona zona", zonas)
+    zona = st.selectbox("Selecciona zona", zonas)
 
-        df_zona = df[df[col_zona] == zona]
+    df_zona = df[df[col_zona] == zona]
 
-        if st.button("Generar informe"):
-            st.subheader(f"Informe zona {zona}")
+    if st.button("Generar informe"):
+        st.subheader(f"📊 Zona {zona}")
 
-            st.metric("Total registros", len(df_zona))
+        st.metric("Total puntos de venta", len(df_zona))
 
-            st.dataframe(df_zona)
+        st.bar_chart(df_zona[col_zona].value_counts())
 
-    else:
-        st.warning("No se ha encontrado columna de Zona")
-
-# --- PLATAFORMA MANAGER ---
+# --- MANAGER ---
 def manager(df):
     st.title("🧠 Plataforma Manager")
 
     if df.empty:
-        st.warning("No hay datos cargados")
+        st.warning("No hay datos")
         return
 
     menu = st.selectbox("Selecciona sección", [
         "Dashboard",
-        "Buscar Punto de Venta",
-        "Planes de acción"
+        "Buscar Punto de Venta"
     ])
 
+    # DASHBOARD
     if menu == "Dashboard":
-        st.subheader("Resumen global")
-        st.metric("Total registros", len(df))
-        st.dataframe(df.head())
+        st.subheader("📊 Resumen global")
 
+        col_zona = [col for col in df.columns if "zona" in col.lower()][0]
+
+        total_pdv = len(df)
+        zonas = df[col_zona].nunique()
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.metric("Total PDV", total_pdv)
+
+        with col2:
+            st.metric("Zonas activas", zonas)
+
+        st.subheader("Distribución por zonas")
+        st.bar_chart(df[col_zona].value_counts())
+
+    # BUSCADOR
     elif menu == "Buscar Punto de Venta":
-        busqueda = st.text_input("Buscar (número, nombre, zona...)")
+        st.subheader("🔎 Buscar estanco")
+
+        busqueda = st.text_input("Introduce número de estanco (VGIFTS)")
 
         if busqueda:
             resultado = df[df.astype(str).apply(lambda row: row.str.contains(busqueda, case=False).any(), axis=1)]
-            st.dataframe(resultado)
 
-    elif menu == "Planes de acción":
-        st.subheader("Seguimiento PDV")
-        st.write("Aquí añadiremos estados, visitas, acciones...")
+            if not resultado.empty:
+                fila = resultado.iloc[0]
 
-# --- PLATAFORMA PDV ---
+                st.success(f"Estanco encontrado: {busqueda}")
+
+                # Datos básicos
+                col_zona = [c for c in df.columns if "zona" in c.lower()][0]
+                col_plan = [c for c in df.columns if "plan" in c.lower()][0]
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.metric("Zona", fila[col_zona])
+
+                with col2:
+                    st.metric("Plan", fila[col_plan])
+
+                # Ventas
+                ventas_cols = [col for col in df.columns if "total" in col.lower()]
+
+                if ventas_cols:
+                    ventas = fila[ventas_cols].dropna()
+
+                    st.subheader("📈 Evolución ventas")
+                    st.line_chart(ventas)
+
+                    if len(ventas) >= 2:
+                        crecimiento = ((ventas.iloc[-1] - ventas.iloc[-2]) / ventas.iloc[-2]) * 100
+
+                        st.subheader("🧠 Informe automático")
+
+                        if crecimiento > 0:
+                            st.success(f"Crecimiento del {crecimiento:.2f}% respecto al último mes")
+                        else:
+                            st.error(f"Caída del {crecimiento:.2f}% respecto al último mes")
+
+                else:
+                    st.warning("No se detectaron columnas de ventas")
+
+            else:
+                st.error("No se encontró el estanco")
+
+# --- PDV (placeholder) ---
 def pdv(df):
     st.title("🏪 Área Punto de Venta")
-
-    if df.empty:
-        st.warning("No hay datos cargados")
-        return
-
-    st.write("Vista individual próximamente")
+    st.write("Próximamente...")
 
 # --- APP PRINCIPAL ---
 def main():
