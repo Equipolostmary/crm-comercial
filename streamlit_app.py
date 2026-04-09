@@ -1,39 +1,49 @@
 import streamlit as st
+import pandas as pd
 
 # Configuración inicial
 st.set_page_config(page_title="CRM Comercial", layout="wide")
 
-# --- LOGIN SIMPLE (placeholder) ---
+# --- LOGIN REAL ---
 def login():
     st.title("🔐 Acceso CRM")
     user = st.text_input("Usuario")
     password = st.text_input("Contraseña", type="password")
 
     if st.button("Entrar"):
-        # Aquí luego conectaremos con Google Sheets
-        if user == "admin":
+        if user == "equipolostmary" and password == "Elfamaster26":
             st.session_state["role"] = "manager"
             st.session_state["login"] = True
         else:
-            st.session_state["role"] = "pdv"
-            st.session_state["login"] = True
+            st.error("Usuario o contraseña incorrectos")
+
+# --- CARGA DE DATOS (TEMPORAL SIN API) ---
+def cargar_datos():
+    url = "https://docs.google.com/spreadsheets/d/1EkUx27lMVtO7S88uuyYtzmjxBBiKyVNc1dXY-nUwpVM/gviz/tq?tqx=out:csv&sheet=Ventas S&A"
+    df = pd.read_csv(url)
+    return df
 
 # --- GENERADOR DE INFORMES ---
-def informes():
+def informes(df):
     st.title("📊 Generador de Informes")
-    zona = st.selectbox("Selecciona zona", ["Este", "Murcia", "Valencia", "Alicante", "Albacete"])
 
-    if st.button("Generar informe"):
-        st.subheader(f"Informe zona {zona}")
+    if "Zona" in df.columns:
+        zonas = df["Zona"].dropna().unique()
+        zona = st.selectbox("Selecciona zona", zonas)
 
-        # Placeholder datos
-        st.metric("Ventas totales", "--")
-        st.metric("Crecimiento", "--")
+        df_zona = df[df["Zona"] == zona]
 
-        st.write("Gráficos próximamente...")
+        if st.button("Generar informe"):
+            st.subheader(f"Informe zona {zona}")
+
+            st.metric("Total registros", len(df_zona))
+
+            st.dataframe(df_zona)
+    else:
+        st.warning("No existe columna 'Zona' en los datos")
 
 # --- PLATAFORMA MANAGER ---
-def manager():
+def manager(df):
     st.title("🧠 Plataforma Manager")
 
     menu = st.selectbox("Selecciona sección", [
@@ -44,26 +54,24 @@ def manager():
 
     if menu == "Dashboard":
         st.subheader("Resumen global")
-        st.write("KPIs y gráficos aquí")
+        st.metric("Total registros", len(df))
+        st.dataframe(df.head())
 
     elif menu == "Buscar Punto de Venta":
         busqueda = st.text_input("Buscar por número de estanco")
-        st.write("Resultados aquí")
+
+        if busqueda:
+            resultado = df[df.astype(str).apply(lambda row: row.str.contains(busqueda).any(), axis=1)]
+            st.dataframe(resultado)
 
     elif menu == "Planes de acción":
         st.subheader("Seguimiento PDV")
-        st.write("Estados, visitas, acciones...")
+        st.write("Aquí añadiremos estados y acciones")
 
 # --- PLATAFORMA PDV ---
-def pdv():
+def pdv(df):
     st.title("🏪 Área Punto de Venta")
-
-    st.subheader("Mi rendimiento")
-    st.metric("Ventas", "--")
-    st.metric("Objetivo", "--")
-    st.metric("Incentivo", "--")
-
-    st.write("Gráfico de evolución próximamente...")
+    st.write("Vista individual próximamente")
 
 # --- APP PRINCIPAL ---
 def main():
@@ -73,6 +81,8 @@ def main():
     if not st.session_state["login"]:
         login()
     else:
+        df = cargar_datos()
+
         st.sidebar.title("Menú")
 
         seccion = st.sidebar.selectbox("Ir a", [
@@ -82,11 +92,11 @@ def main():
         ])
 
         if seccion == "Informes":
-            informes()
+            informes(df)
         elif seccion == "Manager":
-            manager()
+            manager(df)
         elif seccion == "Punto de Venta":
-            pdv()
+            pdv(df)
 
         if st.sidebar.button("Cerrar sesión"):
             st.session_state.clear()
