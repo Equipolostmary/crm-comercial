@@ -19,11 +19,20 @@ def login():
 def cargar_datos():
     url = "https://docs.google.com/spreadsheets/d/1EkUx27lMVtO7S88uuyYtzmjxBBiKyVNc1dXY-nUwpVM/gviz/tq?tqx=out:csv&sheet=Ventas%20S%26A"
     df = pd.read_csv(url)
+
+    # 🔥 LIMPIEZA TOTAL
+    df.columns = df.columns.astype(str).str.strip().str.upper()
+
     return df
 
 # INFORMES
 def informes(df):
     st.title("📊 Generador de Informes")
+
+    if "REGION" not in df.columns:
+        st.error("❌ No se encuentra la columna REGION")
+        st.write("Columnas detectadas:", df.columns)
+        return
 
     zonas = df["REGION"].dropna().unique()
     zona = st.selectbox("Selecciona zona", zonas)
@@ -31,15 +40,17 @@ def informes(df):
     df_zona = df[df["REGION"] == zona]
 
     if st.button("Generar informe"):
-        st.subheader(f"Zona {zona}")
-
         st.metric("Total PDV", len(df_zona))
-
         st.bar_chart(df_zona["REGION"].value_counts())
 
 # MANAGER
 def manager(df):
     st.title("🧠 Plataforma Manager")
+
+    if "REGION" not in df.columns:
+        st.error("❌ No se encuentra la columna REGION")
+        st.write("Columnas detectadas:", df.columns)
+        return
 
     menu = st.selectbox("Sección", ["Dashboard", "Buscar PDV"])
 
@@ -70,7 +81,7 @@ def manager(df):
             if not resultado.empty:
                 fila = resultado.iloc[0]
 
-                st.success(f"Estanco encontrado: {busqueda}")
+                st.success("Estanco encontrado")
 
                 col1, col2 = st.columns(2)
 
@@ -78,13 +89,13 @@ def manager(df):
                     st.metric("Región", fila["REGION"])
 
                 # PLAN
-                plan_cols = [col for col in df.columns if "plan" in col.lower()]
+                plan_cols = [col for col in df.columns if "PLAN" in col]
                 if plan_cols:
                     with col2:
                         st.metric("Plan", fila[plan_cols[0]])
 
                 # VENTAS
-                ventas_cols = [col for col in df.columns if "total" in col.lower()]
+                ventas_cols = [col for col in df.columns if "TOTAL" in col]
 
                 if ventas_cols:
                     ventas = fila[ventas_cols].dropna()
@@ -98,12 +109,12 @@ def manager(df):
                         st.subheader("🧠 Informe automático")
 
                         if crecimiento > 0:
-                            st.success(f"📈 Crecimiento del {crecimiento:.2f}%")
+                            st.success(f"📈 Crecimiento {crecimiento:.2f}%")
                         else:
-                            st.error(f"📉 Caída del {crecimiento:.2f}%")
+                            st.error(f"📉 Caída {crecimiento:.2f}%")
 
                 else:
-                    st.warning("No se detectaron columnas de ventas")
+                    st.warning("No se detectaron columnas de ventas (deben contener 'TOTAL')")
 
             else:
                 st.error("No se encontró el estanco")
